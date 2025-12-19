@@ -76,7 +76,7 @@ def crtsh_info(ip: str, user_id: int) -> str:
     log_event(f"crt.sh-запрос от пользователя {user_id} для IP {ip}")
     
     url = "https://crt.sh/"
-    params= {"q": ip, "output": "json"}
+    params = {"q": ip, "output": "json"}
     try:
         r = requests.get(url, params=params, timeout=20)
         if r.status_code != 200:
@@ -91,7 +91,7 @@ def crtsh_info(ip: str, user_id: int) -> str:
         log_event(f"crt.sh-запрос от пользователя {user_id} для IP {ip} не нашел данных.")
         return "crt.sh не нашел данных для этого IP-адреса."
     
-    domains  = set()
+    domains = set()
 
     for entry in data:
         name_value = entry.get("common_name", "")

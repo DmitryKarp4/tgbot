@@ -69,9 +69,10 @@ def tech_info_handler(message):
     else:
         bot.reply_to(message, "Пожалуйста, введите действительный IP-адрес.")
         return
-    tech_info_result = techinfo(ip, message.from_user.id) # Заменить на tech_info когда добавится Censys
+    tech_info_result = techinfo(ip, message.from_user.id)
     bot.reply_to(message, tech_info_result)
 
+# Обработчик команды /shodandork -> составление Shodan Dork поиска
 @bot.message_handler(commands=['shodandork'])
 def shodan_dork_handler(message):
     parted_message = message.text.split(maxsplit=1)
