@@ -20,9 +20,9 @@ def send_help(message):
         "Доступные команды:\n"
         "/start - Приветственное сообщение\n"
         "/help - Список доступных команд\n"
-        "/ip <IP-адрес> - Проверка валидности IP-адреса\n"
+        "/ip <IP-адрес или Доменное Имя> - Проверка валидности IP-адреса или доменного имени\n"
         "/checkpassword <Пароль> - Проверка надежности пароля\n"
-        "/techinfo <IP-адрес> - Техническая информация по IP-адресу через Shodan и Censys\n"
+        "/techinfo <IP-адрес или Доменное Имя> - Техническая информация по IP-адресу через Shodan и Censys\n"
         "/shodandork <Dork-запрос> - Составление Shodan Dork поиска\n"
         "Доступные аргументы для Dork-запроса:\n\n"
         "ip=<IP-адрес>,\n port=<порт>,\n service=<сервис>,\n product=<продукт>,\n country=<страна>,\n asn=<ASN>,\n org=<организация>,\n title=<заголовок>,\n hostname=<имя хоста>\n\n"
@@ -37,9 +37,9 @@ def check_ip_handler(message):
     if len(parted_message) != 2:
         bot.reply_to(message, "Пожалуйста, используйте команду в формате: /ip <IP-адрес>")
         return
-    ip_str = parted_message[1]
+    user_str = parted_message[1]
     user_id = message.from_user.id
-    is_valid, feedback = is_valid_ip(ip_str, user_id) # Получает две переменные, is_valid и feedback, из функции is_valid_ip, одна из которых указывает, действителен ли IP-адрес, а другая содержит сообщение для пользователя
+    is_valid, feedback, ip = is_valid_ip(user_str, user_id) # Получает три переменные, is_valid, feedback и ip, из функции is_valid_ip, одна из которых указывает, действителен ли IP-адрес, другая содержит сообщение для пользователя, а третья - сам IP-адрес или None
     bot.reply_to(message, feedback) # Ответ бота с соответствующим сообщением
 
 # Обработчик команды /checkpassword -> проверка надежности пароля
@@ -62,9 +62,9 @@ def tech_info_handler(message):
     if len(parted_message) != 2:
         bot.reply_to(message, "Пожалуйста, используйте команду в формате: /techinfo <IP-адрес>")
         return
-    is_valid, feedback = is_valid_ip(parted_message[1], message.from_user.id)
+    is_valid, feedback, ip_str = is_valid_ip(parted_message[1], message.from_user.id)
     if is_valid:
-        ip = parted_message[1]
+        ip = ip_str
         bot.reply_to(message, f"Получение технической информации для IP-адреса {ip}...")
     else:
         bot.reply_to(message, "Пожалуйста, введите действительный IP-адрес.")
