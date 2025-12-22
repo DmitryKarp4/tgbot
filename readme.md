@@ -5,22 +5,21 @@
 Данный Telegram-бот предназначен для базовых **TechINT / Security** проверок и сбора открытой информации по IP-адресам:
 
 * 🔐 **Проверка надежности паролей**
-
   * локально (длина, состав символов)
   * по списку скомпрометированных паролей `rockyou.txt`
   * через API **Have I Been Pwned**
 * 🌐 **Проверка валидности IP-адресов**
 * 🛰️ **TechINT-отчёт по IP**
-
   * данные из **Shodan** (открытые порты, сервисы, версии, HTTP/SSL-информация)
   * поиск доменов и сертификатов через **crt.sh**
+* 🕷️ **Создание Shodan-Dork из исходных параметров** 
 * 🗂️ **Логирование всех действий пользователей** с указанием `user_id`
 
 Бот написан на Python с использованием библиотеки **pyTelegramBotAPI**. Архитектура модульная и подготовлена для дальнейшего расширения (другие источники TECHINT, Docker, CI).
 
 ---
 
-## 🕷️ Установка и настройка
+##  Установка и настройка
 
 ### 1️⃣ Регистрация Telegram-бота
 
@@ -68,7 +67,13 @@ export SHODAN_TOKEN=ВАШ_SHODAN_API_KEY
 setx TG_TOKEN "ВАШ_TELEGRAM_TOKEN"
 setx SHODAN_TOKEN "ВАШ_SHODAN_API_KEY"
 ```
-
+#### .env (PowerShell / Bash)
+```bash
+cd <папка проекта>
+mkdir .env
+echo 'TG_TOKEN = "7890017395:AAFHJShseXw8hufp9xKPk_IZ5-3dFp623IE"' >> .env
+echo 'SHODAN_TOKEN = "2fEMj6S9HKpa7wzviiWrQogffGdNxTUv"' >> .env
+```
 Если обязательные переменные не заданы — бот не запустится.
 
 ---
@@ -88,7 +93,7 @@ setx SHODAN_TOKEN "ВАШ_SHODAN_API_KEY"
 ### 5️⃣ Установка зависимостей
 
 ```bash
-pip install pyTelegramBotAPI requests shodan
+pip install pyTelegramBotAPI requests shodan ipaddress
 ```
 
 ---
@@ -105,13 +110,14 @@ python main.py
 
 ## 🤖 Доступные команды
 
-| Команда                   | Описание                        |
-| ------------------------- | ------------------------------- |
-| `/start`                  | Приветственное сообщение        |
-| `/help`                   | Список доступных команд         |
-| `/ip <IP>`                | Проверка валидности IP-адреса   |
-| `/checkpassword <пароль>` | Проверка надежности пароля      |
-| `/techinfo <IP>`          | TECHINT-отчёт (Shodan + crt.sh) |
+| Команда                     | Описание                        |
+| --------------------------- | ------------------------------- |
+| `/start`                    | Приветственное сообщение        |
+| `/help`                     | Список доступных команд         |
+| `/ip <IP>`                  | Проверка валидности IP-адреса   |
+| `/checkpassword <пароль>`   | Проверка надежности пароля      |
+| `/techinfo <IP>`            | TECHINT-отчёт (Shodan + crt.sh) |
+| `/shodandork  <Dork-запрос>`| Shodan-Dork запрос              |
 
 ### Примеры
 
@@ -119,6 +125,7 @@ python main.py
 /ip 8.8.8.8
 /checkpassword P@ssw0rd123
 /techinfo 1.1.1.1
+/shodandork ip=1.1.1.1, port=53, service=nginx
 ```
 
 ---
@@ -148,6 +155,7 @@ logs.txt
 ├── checkpassword.py
 ├── checkip.py
 ├── techinfo.py
+├── shodandork.py
 ├── log_event.py
 ├── rockyou.txt
 ├── logs.txt
