@@ -2,8 +2,9 @@ import sqlite3
 import hashlib
 import secrets
 from pathlib import Path
+from log_event import log_event
 
-DB_PATH = Path("bot.db")
+DB_PATH = Path("users.db")
 
 
 # ---------- DB ----------
@@ -69,6 +70,7 @@ def _hash_password(password: str) -> str:
         salt.encode("utf-8"),
         200_000
     )
+    log_event(f"Пароль от пользователя был захеширован с солью.")
     return f"pbkdf2_sha256${salt}${dk.hex()}"
 
 
@@ -93,6 +95,7 @@ def setup_registration(bot):
         _, _, login, is_reg = row
         if is_reg:
             bot.reply_to(message, f"Ты зарегистрирован.\nЛогин: {login}")
+            log_event(f"Запрос статуса регистрации через /me от пользователя {user_id}.")
         else:
             bot.reply_to(message, "Регистрация не завершена. Напиши /register")
 
@@ -143,6 +146,7 @@ def setup_registration(bot):
         row = _get_user(user_id)
         login = row[2] if row else "?"
         bot.reply_to(message, f"✅ Готово! Ты зарегистрирован.\nЛогин: {login}")
+        log_event(f"Пользователь {user_id} завершил регистрацию с логином {login}.")
 
 
 # ---------- OPTIONAL: use this in main.py to protect commands ----------
