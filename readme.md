@@ -118,6 +118,11 @@ python main.py
 | `/checkpassword <пароль>`   | Проверка надежности пароля      |
 | `/techinfo <IP>`            | TECHINT-отчёт (Shodan + crt.sh) |
 | `/shodandork  <Dork-запрос>`| Shodan-Dork запрос              |
+| `/password`                 | Управление паролями             |
+| `/set_master_password`      | Установка мастер-пароля         |
+| `/find <Любое значение>`    | Поиск в БД утечек (people.bd)   |
+| `/register`                 | Регистрация в боте              |
+| `/me`                       | Проверка своего пользователя    |
 
 ### Примеры
 
@@ -126,6 +131,7 @@ python main.py
 /checkpassword P@ssw0rd123
 /techinfo 1.1.1.1
 /shodandork ip=1.1.1.1, port=53, service=nginx
+/find Тажибаа
 ```
 
 ---
@@ -157,6 +163,14 @@ logs.txt
 ├── techinfo.py
 ├── shodandork.py
 ├── log_event.py
+├── access_control.py
+├── crypto_utils.py
+├── passwords_db.py
+├── registration.py
+├── report_file.py
+├── search.py
+├── users.db
+├── people.db
 ├── rockyou.txt
 ├── logs.txt
 ├── .env.example
@@ -174,7 +188,7 @@ logs.txt
 * Shodan API
 * Have I Been Pwned API
 * crt.sh (Certificate Transparency)
-
+* SQLite
 ---
 
 ## 🚧 Планы по развитию
