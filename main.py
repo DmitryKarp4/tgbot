@@ -3,17 +3,21 @@ from telebot import types
 from config import TG_TOKEN
 from checkpassword import check_password
 from checkip import is_valid_ip
+from passwords_db import add_password, get_services
 from techinfo import techinfo
 from shodandork import shodan_dork_search
 from registration import setup_registration, is_registered 
+from passwords_db import init_passwords_table, check_master_password, get_encrypted_password
 from search import search_people
 from log_event import log_event
 from report_file import send_report_file
+from crypto_utils import decrypt_password
 
 bot = telebot.TeleBot(TG_TOKEN)
 setup_registration(bot)
+init_passwords_table()
 user_reports = {} # Временное хранилище отчётов
-
+user_password_steps = {}  # хранит временно ввод пользователя (user_id -> dict)
 
 # Обработчик команды /start -> приветственное сообщение
 @bot.message_handler(commands=['start'])
@@ -208,6 +212,88 @@ def callback_send_report(call):
     send_report_file(bot, chat_id, user_id, report_text)
     log_event(f"Файл с отчётом отправлен пользователю {user_id} через кнопку.")
     bot.answer_callback_query(call.id, "Файл отправлен ✅")
+
+@bot.message_handler(commands=['password'])
+def passwords_manager_handler(message):
+    # запрет без регистрации
+    if not is_registered(message.from_user.id):
+        log_event(f"Попытка использования /password пользователем {message.from_user.id} без регистрации")
+        bot.reply_to(message, "❌ Команда /password доступна только после регистрации. Напиши /register")
+        return
+    chat_id = message.chat.id 
+
+    # Создаём кнопку
+    kb = types.InlineKeyboardMarkup()
+    kb.add(
+        types.InlineKeyboardButton(
+            text="Добавить пароль",
+            callback_data="add_password"
+        ),
+        types.InlineKeyboardButton(
+            text="Показать пароли",
+            callback_data="show_passwords"
+        )
+    )
+
+    # Отправляем сообщение с кнопкой
+    bot.send_message(
+        chat_id,
+        f"Выберите действие ниже:",
+        reply_markup=kb
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "add_password")
+def callback_add_password(call): # В итоге получаю переменные master_password, service, service_password
+    user_id = call.from_user.id
+    chat_id = call.message.chat.id 
+    msg = bot.send_message(chat_id, "Введите свой мастер-пароль:")
+    bot.register_next_step_handler(msg, process_master_password_step, user_id)
+
+def process_master_password_step(message, user_id):
+    master_password = message.text.strip()
+    
+    chat_id = message.chat.id
+    msg = bot.send_message(chat_id, "Введите название сервиса (например, Gmail, Facebook):")
+    bot.register_next_step_handler(msg, process_service_addpass_step, user_id, master_password)
+
+def process_service_addpass_step(message, user_id, master_password):
+    service = message.text.strip()
+    
+    chat_id = message.chat.id
+    msg = bot.send_message(chat_id, "Введите пароль для сервиса:")
+    bot.register_next_step_handler(msg, process_addpassword_step, user_id, master_password, service)
+
+def process_addpassword_step(message, user_id, master_password, service):
+    service_password = message.text.strip()
+
+    chat_id = message.chat.id
+    add_password(user_id, master_password, service, service_password) # Добавляем пароль в БД
+    bot.send_message(chat_id, f"Пароль для {service} сохранён!")
+        
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "show_passwords")
+def callback_add_password(call):
+    user_id = call.from_user.id
+    chat_id = call.message.chat.id 
+    services = get_services(user_id)
+    msg = bot.send_message(chat_id, "Сохранённые сервисы:\n" + "\n".join(services) if services else "Нет сохранённых паролей.")
+    bot.register_next_step_handler(msg, process_service_step, user_id, chat_id)
+    
+def process_service_step(service, user_id, chat_id):
+    selected_service = service.text.strip()
+    msg = bot.send_message(chat_id, f"Введите мастер-пароль для доступа к паролю сервиса {selected_service}:")
+    bot.register_next_step_handler(msg, process_retrieve_password_step, user_id, selected_service, chat_id)
+
+def process_retrieve_password_step(master, user_id, service, chat_id):
+    master = master.text.strip()
+    is_valid = check_master_password(user_id, master)
+    if is_valid:
+        enc_pass = get_encrypted_password(user_id, service)
+        decrypted_password = decrypt_password(enc_pass, master, user_id)
+        bot.send_message(chat_id, f"Мастер-пароль верен. Пароль для сервиса **{service}**:\n **{decrypted_password}**", parse_mode='Markdown')
+    else:
+        bot.send_message(chat_id, "Неверный мастер-пароль.")
 
 bot.infinity_polling()
 

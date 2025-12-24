@@ -93,7 +93,7 @@ echo 'SHODAN_TOKEN = "ВАШ_SHODAN_API_KEY"' >> .env
 ### 5️⃣ Установка зависимостей
 
 ```bash
-pip install pyTelegramBotAPI requests shodan ipaddress
+pip install pyTelegramBotAPI requests shodan ipaddress cryptography
 ```
 
 ---
