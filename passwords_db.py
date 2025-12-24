@@ -5,7 +5,7 @@ from crypto_utils import encrypt_password
 from log_event import log_event
 from pathlib import Path
 
-DB_PATH = Path("people.db")
+DB_PATH = Path("users.db")
 
 def _conn():
     return sqlite3.connect(DB_PATH)

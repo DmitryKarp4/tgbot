@@ -4,7 +4,7 @@ import secrets
 from pathlib import Path
 from log_event import log_event
 
-DB_PATH = Path("people.db")
+DB_PATH = Path("users.db")
 
 
 # ---------- DB ----------

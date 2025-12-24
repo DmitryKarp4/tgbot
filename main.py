@@ -12,12 +12,34 @@ from search import search_people
 from log_event import log_event
 from report_file import send_report_file
 from crypto_utils import decrypt_password
+import time
 
 bot = telebot.TeleBot(TG_TOKEN)
 setup_registration(bot)
 init_passwords_table()
 user_reports = {} # Временное хранилище отчётов
 user_password_steps = {}  # хранит временно ввод пользователя (user_id -> dict)
+active_master_sessions: dict[int, dict]
+active_master_sessions = {}
+master_session_ttl = 120  # секунд
+
+# Функции для управления сессиями мастер-паролей
+def set_master_session(user_id: int, master_password: str):
+    active_master_sessions[user_id] = {
+        "master": master_password,
+        "expires_at": time.time() + master_session_ttl
+    }
+
+def get_master_session(user_id: int):
+    session = active_master_sessions.get(user_id)
+    if not session:
+        return None
+
+    if time.time() > session["expires_at"]:
+        active_master_sessions.pop(user_id, None)
+        return None
+
+    return session["master"]
 
 # Обработчик команды /start -> приветственное сообщение
 @bot.message_handler(commands=['start'])
@@ -213,6 +235,22 @@ def callback_send_report(call):
     log_event(f"Файл с отчётом отправлен пользователю {user_id} через кнопку.")
     bot.answer_callback_query(call.id, "Файл отправлен ✅")
 
+@bot.message_handler(commands=['set_master_password'])
+def set_master_password_handler(message):
+    # запрет без регистрации
+    if not is_registered(message.from_user.id):
+        log_event(f"Попытка использования /set_master_password пользователем {message.from_user.id} без регистрации")
+        bot.reply_to(message, "❌ Команда /set_master_password доступна только после регистрации. Напиши /register")
+        return
+
+    chat_id = message.chat.id
+    msg = bot.send_message(chat_id, "Введите новый мастер-пароль:")
+    bot.register_next_step_handler(msg, process_set_master_password_step, message.from_user.id)
+
+def process_set_master_password_step(message, user_id):
+    set_master_session(user_id, message.text.strip())
+    bot.send_message(message.chat.id, "Мастер-пароль установлен!")
+
 @bot.message_handler(commands=['password'])
 def passwords_manager_handler(message):
     # запрет без регистрации
@@ -246,26 +284,37 @@ def passwords_manager_handler(message):
 def callback_add_password(call): # В итоге получаю переменные master_password, service, service_password
     user_id = call.from_user.id
     chat_id = call.message.chat.id 
-    msg = bot.send_message(chat_id, "Введите свой мастер-пароль:")
-    bot.register_next_step_handler(msg, process_master_password_step, user_id)
-
-def process_master_password_step(message, user_id):
-    master_password = message.text.strip()
+    master_password = active_master_sessions.get(user_id)
+    if master_password: # Есть ли уже мастер пароль в сессии
+        msg = bot.send_message(chat_id, "Введите название сервиса (например, Gmail, Facebook):")
+        bot.register_next_step_handler(msg, process_service_addpass_step, user_id)
+    else:
+        msg = bot.send_message(chat_id, "Мастер-Пароль еще не был установлен. Введите свой мастер-пароль:")
+        bot.register_next_step_handler(msg, process_master_password_step, user_id)
     
+
+def process_master_password_step(message, user_id): # Получение мастер-пароля
+    set_master_session(user_id, message.text.strip())
     chat_id = message.chat.id
     msg = bot.send_message(chat_id, "Введите название сервиса (например, Gmail, Facebook):")
-    bot.register_next_step_handler(msg, process_service_addpass_step, user_id, master_password)
+    bot.register_next_step_handler(msg, process_service_addpass_step, user_id)
 
-def process_service_addpass_step(message, user_id, master_password):
+def process_service_addpass_step(message, user_id): # Получение названия сервиса
     service = message.text.strip()
-    
+    master_password = get_master_session(user_id)
+    if not master_password:
+        bot.send_message(message.chat.id, "❌ Мастер-сессия истекла. Введите /password заново.")
+        return
     chat_id = message.chat.id
     msg = bot.send_message(chat_id, "Введите пароль для сервиса:")
-    bot.register_next_step_handler(msg, process_addpassword_step, user_id, master_password, service)
+    bot.register_next_step_handler(msg, process_addpassword_step, user_id, service)
 
-def process_addpassword_step(message, user_id, master_password, service):
+def process_addpassword_step(message, user_id, service): # Получение пароля сервиса
     service_password = message.text.strip()
-
+    master_password = get_master_session(user_id)
+    if not master_password:
+        bot.send_message(message.chat.id, "❌ Мастер-сессия истекла. Введите /password заново.")
+        return
     chat_id = message.chat.id
     add_password(user_id, master_password, service, service_password) # Добавляем пароль в БД
     bot.send_message(chat_id, f"Пароль для {service} сохранён!")
@@ -280,18 +329,14 @@ def callback_add_password(call):
     msg = bot.send_message(chat_id, "Сохранённые сервисы:\n" + "\n".join(services) if services else "Нет сохранённых паролей.")
     bot.register_next_step_handler(msg, process_service_step, user_id, chat_id)
     
-def process_service_step(service, user_id, chat_id):
+def process_service_step(service, user_id, chat_id): # Получение названия сервиса для получения пароля
     selected_service = service.text.strip()
-    msg = bot.send_message(chat_id, f"Введите мастер-пароль для доступа к паролю сервиса {selected_service}:")
-    bot.register_next_step_handler(msg, process_retrieve_password_step, user_id, selected_service, chat_id)
-
-def process_retrieve_password_step(master, user_id, service, chat_id):
-    master = master.text.strip()
+    master = get_master_session(user_id)
     is_valid = check_master_password(user_id, master)
     if is_valid:
-        enc_pass = get_encrypted_password(user_id, service)
+        enc_pass = get_encrypted_password(user_id, selected_service)
         decrypted_password = decrypt_password(enc_pass, master, user_id)
-        bot.send_message(chat_id, f"Мастер-пароль верен. Пароль для сервиса **{service}**:\n **{decrypted_password}**", parse_mode='Markdown')
+        bot.send_message(chat_id, f"Мастер-пароль найден и верен. Пароль для сервиса **{selected_service}**:\n\n**{decrypted_password}**", parse_mode='Markdown')
     else:
         bot.send_message(chat_id, "Неверный мастер-пароль.")
 
