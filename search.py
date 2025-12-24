@@ -1,10 +1,11 @@
 import sqlite3
 from pathlib import Path
+from log_event import log_event
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "directory.db"
 
-def search_people(query: str, limit: int = 10):
+def search_people(query: str, limit: int = 10, user_id: str = None):
     q = (query or "").strip()
     if not q:
         return []
@@ -22,4 +23,5 @@ def search_people(query: str, limit: int = 10):
                OR LOWER(password) LIKE ?
             LIMIT ?
         """, (like, like, like, like, limit))
+        log_event(f"Выполнен поиск в справочнике для пользователя {user_id} по запросу: {query}, лимит: {limit}.")
         return cur.fetchall()
