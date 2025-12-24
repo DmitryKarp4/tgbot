@@ -4,8 +4,12 @@ from checkpassword import check_password
 from checkip import is_valid_ip
 from techinfo import techinfo
 from shodandork import shodan_dork_search
+from registration import setup_registration, is_registered 
+from search import search_people
 
 bot = telebot.TeleBot(TG_TOKEN)
+setup_registration(bot)
+
 
 
 # Обработчик команды /start -> приветственное сообщение
@@ -20,6 +24,9 @@ def send_help(message):
         "Доступные команды:\n"
         "/start - Приветственное сообщение\n"
         "/help - Список доступных команд\n"
+        "/register - Регистрация пользователя\n"
+        "/me - Проверка статуса регистрации\n"
+        "/find <текст> - Поиск в справочнике по ФИО/email/телефону\n(без учета регистра). БЕЗ РЕГИСТРАЦИИ НЕДОСТУПНО\n"
         "/ip <IP-адрес или Доменное Имя> - Проверка валидности IP-адреса или доменного имени\n"
         "/checkpassword <Пароль> - Проверка надежности пароля\n"
         "/techinfo <IP-адрес или Доменное Имя> - Техническая информация по IP-адресу через Shodan и Censys\n"
@@ -72,6 +79,34 @@ def tech_info_handler(message):
     tech_info_result = techinfo(ip, message.from_user.id) # Заменить на tech_info когда добавится Censys
     bot.reply_to(message, tech_info_result)
 
+# Обработчик команды /find -> поиск в справочнике
+@bot.message_handler(commands=['find'])
+def find_handler(message):
+    # запрет без регистрации
+    if not is_registered(message.from_user.id):
+        bot.reply_to(message, "❌ Команда /find доступна только после регистрации. Напиши /register")
+        return
+
+    parted = message.text.split(maxsplit=1)
+    if len(parted) != 2:
+        bot.reply_to(message, "Формат: /find <ФИО или email или телефон или любой текст>")
+        return
+
+    query = parted[1].strip()
+    rows = search_people(query, limit=10)
+
+    if not rows:
+        bot.reply_to(message, "Ничего не найдено.")
+        return
+
+    out = []
+    for i, (fio, email, password, phone) in enumerate(rows, start=1):
+        out.append(
+            f"{i}) ФИО: {fio}\nEmail: {email}\nПароль: {password}\nТелефон: {phone}"
+        )
+
+    bot.reply_to(message, "\n\n".join(out))
+
 @bot.message_handler(commands=['shodandork'])
 def shodan_dork_handler(message):
     parted_message = message.text.split(maxsplit=1)
@@ -91,6 +126,8 @@ def shodan_dork_handler(message):
     bot.reply_to(message, result)
 
 bot.infinity_polling()
+
+
 
 
 # TODO: Domain name info (whois, dns, etc.)
