@@ -1,22 +1,25 @@
 # Telegram TechINT Bot
 
-## Описание
+## 📌 Описание
 
-Данный Telegram-бот предназначен для базовых проверок, связанных с информационной безопасностью:
+Данный Telegram-бот предназначен для базовых **TechINT / Security** проверок и сбора открытой информации по IP-адресам:
 
-* 👐 Проверка надежности паролей
-
+* 🔐 **Проверка надежности паролей**
   * локально (длина, состав символов)
   * по списку скомпрометированных паролей `rockyou.txt`
   * через API **Have I Been Pwned**
-* 🌐 Проверка валидности IP-адресов
-* 🗑️ Логирование всех действий пользователей с указанием `user_id`
+* 🌐 **Проверка валидности IP-адресов**
+* 🛰️ **TechINT-отчёт по IP**
+  * данные из **Shodan** (открытые порты, сервисы, версии, HTTP/SSL-информация)
+  * поиск доменов и сертификатов через **crt.sh**
+* 🕷️ **Создание Shodan-Dork из исходных параметров** 
+* 🗂️ **Логирование всех действий пользователей** с указанием `user_id`
 
-Бот написан на Python с использованием библиотеки **pyTelegramBotAPI** и спроектирован так, чтобы удобно запускаться в том числе в Docker.
+Бот написан на Python с использованием библиотеки **pyTelegramBotAPI**. Архитектура модульная и подготовлена для дальнейшего расширения (другие источники TECHINT, Docker, CI).
 
 ---
 
-## 🕷️ Установка и настройка
+##  Установка и настройка
 
 ### 1️⃣ Регистрация Telegram-бота
 
@@ -44,21 +47,34 @@ cd <папка_проекта>
 
 ### 3️⃣ Настройка переменных окружения
 
-Бот использует переменные окружения.
+Бот использует переменные окружения (безопасно для Git и Docker).
+
+Минимальный набор:
+
+* `TG_TOKEN` — Telegram Bot Token
+* `SHODAN_TOKEN` — API-ключ Shodan
 
 #### Linux / macOS
 
 ```bash
 export TG_TOKEN=ВАШ_TELEGRAM_TOKEN
+export SHODAN_TOKEN=ВАШ_SHODAN_API_KEY
 ```
 
 #### Windows (PowerShell)
 
 ```powershell
 setx TG_TOKEN "ВАШ_TELEGRAM_TOKEN"
+setx SHODAN_TOKEN "ВАШ_SHODAN_API_KEY"
 ```
-
-Если переменная `TG_TOKEN` не задана — бот не запустится.
+#### .env (PowerShell / Bash)
+```bash
+cd <папка проекта>
+mkdir .env
+echo 'TG_TOKEN = "ВАШ_TELEGRAM_TOKEN"' >> .env
+echo 'SHODAN_TOKEN = "ВАШ_SHODAN_API_KEY"' >> .env
+```
+Если обязательные переменные не заданы — бот не запустится.
 
 ---
 
@@ -77,7 +93,7 @@ setx TG_TOKEN "ВАШ_TELEGRAM_TOKEN"
 ### 5️⃣ Установка зависимостей
 
 ```bash
-pip install pyTelegramBotAPI requests
+pip install pyTelegramBotAPI requests shodan ipaddress
 ```
 
 ---
@@ -94,18 +110,22 @@ python main.py
 
 ## 🤖 Доступные команды
 
-| Команда                   | Описание                      |
-| ------------------------- | ----------------------------- |
-| `/start`                  | Приветственное сообщение      |
-| `/help`                   | Список доступных команд       |
-| `/ip <IP>`                | Проверка валидности IP-адреса |
-| `/checkpassword <пароль>` | Проверка надежности пароля    |
+| Команда                     | Описание                        |
+| --------------------------- | ------------------------------- |
+| `/start`                    | Приветственное сообщение        |
+| `/help`                     | Список доступных команд         |
+| `/ip <IP>`                  | Проверка валидности IP-адреса   |
+| `/checkpassword <пароль>`   | Проверка надежности пароля      |
+| `/techinfo <IP>`            | TECHINT-отчёт (Shodan + crt.sh) |
+| `/shodandork  <Dork-запрос>`| Shodan-Dork запрос              |
 
 ### Примеры
 
 ```
 /ip 8.8.8.8
 /checkpassword P@ssw0rd123
+/techinfo 1.1.1.1
+/shodandork ip=1.1.1.1, port=53, service=nginx
 ```
 
 ---
@@ -122,7 +142,7 @@ logs.txt
 
 * время события
 * описание действия
-* `user_id` пользователя
+* `user_id`
 
 ---
 
@@ -134,9 +154,12 @@ logs.txt
 ├── config.py
 ├── checkpassword.py
 ├── checkip.py
+├── techinfo.py
+├── shodandork.py
 ├── log_event.py
 ├── rockyou.txt
 ├── logs.txt
+├── .env.example
 ├── .gitignore
 └── README.md
 ```
@@ -148,6 +171,14 @@ logs.txt
 * Python 3
 * pyTelegramBotAPI
 * requests
+* Shodan API
 * Have I Been Pwned API
+* crt.sh (Certificate Transparency)
 
 ---
+
+## 🚧 Планы по развитию
+
+* 🐳 Dockerfile и docker-compose
+* 🔎 Дополнительные TECHINT-источники
+* 📊 Форматированный отчёт (Markdown / HTML)
