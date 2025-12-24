@@ -211,8 +211,6 @@ def callback_send_report(call):
 
 bot.infinity_polling()
 
-# Реализовать экспорт утечек из бдшек
-# Менеджер паролей
-
-
+# TODO: Менеджер паролей
+# TODO: Поменять Readme.md
 # TODO: Domain name info (whois, dns, etc.)

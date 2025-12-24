@@ -3,7 +3,7 @@ from pathlib import Path
 from log_event import log_event
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "directory.db"
+DB_PATH = BASE_DIR / "people.db"
 
 def search_people(query: str, limit: int = 10, user_id: str = None):
     q = (query or "").strip()

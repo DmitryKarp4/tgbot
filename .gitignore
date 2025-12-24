@@ -3,4 +3,4 @@ logs.txt
 __pycache__/
 *.pyc
 rockyou.txt
-bot.db
+users.db
