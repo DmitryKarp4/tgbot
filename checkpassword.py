@@ -3,8 +3,11 @@ import requests
 from log_event import log_event
 
 # Загрузка скомпрометированных паролей из файла rockyou.txt в множество при инициализации
-with open("rockyou.txt", "r", encoding="latin-1") as file:
+try:
+    with open("rockyou.txt", "r", encoding="latin-1") as file:
             compromised_passwords = set(p.strip() for p in file)
+except FileNotFoundError:
+    raise Exception("Файл rockyou.txt не найден. Убедитесь, что файл находится в той же директории, что и скрипт.")
 
 def check_password(password, user_id) -> tuple[bool, str]:
 

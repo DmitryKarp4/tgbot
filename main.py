@@ -166,7 +166,7 @@ def tech_info_handler(message):
 def find_handler(message):
     # запрет без регистрации
     if not is_registered(message.from_user.id):
-        log_event(message.from_user.id, "Попытка использования /find без регистрации")
+        log_event("Попытка использования /find без регистрации")
         bot.reply_to(message, "❌ Команда /find доступна только после регистрации. Напиши /register")
         return
 
@@ -371,6 +371,4 @@ def process_service_step(service, user_id, chat_id): # Получение наз
 
 bot.infinity_polling()
 
-# TODO: Менеджер паролей
-# TODO: Поменять Readme.md
 # TODO: Domain name info (whois, dns, etc.)
