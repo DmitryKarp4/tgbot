@@ -1,25 +1,45 @@
 import telebot
+from telebot import types
 from config import TG_TOKEN
 from checkpassword import check_password
 from checkip import is_valid_ip
+from passwords_db import add_password, get_services
 from techinfo import techinfo
 from shodandork import shodan_dork_search
 from registration import setup_registration, is_registered 
+from passwords_db import init_passwords_table, check_master_password, get_encrypted_password
 from search import search_people
-<<<<<<< Updated upstream
-=======
 from log_event import log_event
 from report_file import send_report_file
 from crypto_utils import decrypt_password
-from checkvt import check_url, check_file_bytes, set_waiting_file, is_waiting_file
-from password_generator import generate_secure_password
 import time
->>>>>>> Stashed changes
 
 bot = telebot.TeleBot(TG_TOKEN)
 setup_registration(bot)
+init_passwords_table()
+user_reports = {} # Временное хранилище отчётов
+user_password_steps = {}  # хранит временно ввод пользователя (user_id -> dict)
+active_master_sessions: dict[int, dict]
+active_master_sessions = {}
+master_session_ttl = 120  # секунд
 
+# Функции для управления сессиями мастер-паролей
+def set_master_session(user_id: int, master_password: str):
+    active_master_sessions[user_id] = {
+        "master": master_password,
+        "expires_at": time.time() + master_session_ttl
+    }
 
+def get_master_session(user_id: int):
+    session = active_master_sessions.get(user_id)
+    if not session:
+        return None
+
+    if time.time() > session["expires_at"]:
+        active_master_sessions.pop(user_id, None)
+        return None
+
+    return session["master"]
 
 # Обработчик команды /start -> приветственное сообщение
 @bot.message_handler(commands=['start'])
@@ -30,21 +50,6 @@ def send_welcome(message):
 @bot.message_handler(commands=['help'])
 def send_help(message):
     help_text = (
-<<<<<<< Updated upstream
-        "Доступные команды:\n"
-        "/start - Приветственное сообщение\n"
-        "/help - Список доступных команд\n"
-        "/register - Регистрация пользователя\n"
-        "/me - Проверка статуса регистрации\n"
-        "/find <текст> - Поиск в справочнике по ФИО/email/телефону\n(без учета регистра). БЕЗ РЕГИСТРАЦИИ НЕДОСТУПНО\n"
-        "/ip <IP-адрес или Доменное Имя> - Проверка валидности IP-адреса или доменного имени\n"
-        "/checkpassword <Пароль> - Проверка надежности пароля\n"
-        "/techinfo <IP-адрес или Доменное Имя> - Техническая информация по IP-адресу через Shodan и Censys\n"
-        "/shodandork <Dork-запрос> - Составление Shodan Dork поиска\n"
-        "Доступные аргументы для Dork-запроса:\n\n"
-        "ip=<IP-адрес>,\n port=<порт>,\n service=<сервис>,\n product=<продукт>,\n country=<страна>,\n asn=<ASN>,\n org=<организация>,\n title=<заголовок>,\n hostname=<имя хоста>\n\n"
-        "Пример использования Dork-запроса: /shodandork port=80, country=US"
-=======
         "🤖 *Доступные команды бота*\n\n"
 
         "📌 *Основные команды*\n"
@@ -90,9 +95,7 @@ def send_help(message):
         message.chat.id,
         help_text,
         parse_mode="Markdown"
->>>>>>> Stashed changes
     )
-    bot.reply_to(message, help_text)
 
 # Обработчик команды /ip -> проверка валидности IP-адреса
 @bot.message_handler(commands=['ip'])
@@ -126,6 +129,7 @@ def tech_info_handler(message):
     if len(parted_message) != 2:
         bot.reply_to(message, "Пожалуйста, используйте команду в формате: /techinfo <IP-адрес>")
         return
+
     is_valid, feedback, ip_str = is_valid_ip(parted_message[1], message.from_user.id)
     if is_valid:
         ip = ip_str
@@ -133,14 +137,38 @@ def tech_info_handler(message):
     else:
         bot.reply_to(message, "Пожалуйста, введите действительный IP-адрес.")
         return
-    tech_info_result = techinfo(ip, message.from_user.id) # Заменить на tech_info когда добавится Censys
-    bot.reply_to(message, tech_info_result)
+
+    # Генерация отчёта
+    tech_info_result = techinfo(ip, message.from_user.id)
+
+    # Сохраняем результат для кнопки
+    chat_id = message.chat.id 
+    user_reports[chat_id] = tech_info_result # Временное сохранение отчёта
+
+    # Создаём кнопку
+    kb = types.InlineKeyboardMarkup()
+    kb.add(
+        types.InlineKeyboardButton(
+            text="📄 Получить файл с отчётом",
+            callback_data="send_report"
+        )
+    )
+
+    # Отправляем сообщение с кнопкой
+    bot.send_message(
+        chat_id,
+        f"{tech_info_result}\n\nНажмите кнопку ниже, чтобы получить файл с полным отчётом.",
+        reply_markup=kb
+    )
+
+    
 
 # Обработчик команды /find -> поиск в справочнике
 @bot.message_handler(commands=['find'])
 def find_handler(message):
     # запрет без регистрации
     if not is_registered(message.from_user.id):
+        log_event("Попытка использования /find без регистрации")
         bot.reply_to(message, "❌ Команда /find доступна только после регистрации. Напиши /register")
         return
 
@@ -150,7 +178,7 @@ def find_handler(message):
         return
 
     query = parted[1].strip()
-    rows = search_people(query, limit=10)
+    rows = search_people(query, limit=10, user_id=message.from_user.id)
 
     if not rows:
         bot.reply_to(message, "Ничего не найдено.")
@@ -161,8 +189,29 @@ def find_handler(message):
         out.append(
             f"{i}) ФИО: {fio}\nEmail: {email}\nПароль: {password}\nТелефон: {phone}"
         )
+    
+    # Сохраняем результат для кнопки
+    find_result = "\n\n".join(out)
 
-    bot.reply_to(message, "\n\n".join(out))
+    chat_id = message.chat.id 
+    user_reports[chat_id] = find_result # Временное сохранение отчёта
+
+    # Создаём кнопку
+    kb = types.InlineKeyboardMarkup()
+    kb.add(
+        types.InlineKeyboardButton(
+            text="📄 Получить файл с отчётом",
+            callback_data="send_report"
+        )
+    )
+
+    # Отправляем сообщение с кнопкой
+    bot.send_message(
+        chat_id,
+        f"{find_result}\n\nНажмите кнопку ниже, чтобы получить файл с полным отчётом.",
+        reply_markup=kb
+    )
+    
 
 @bot.message_handler(commands=['shodandork'])
 def shodan_dork_handler(message):
@@ -179,15 +228,10 @@ def shodan_dork_handler(message):
     dork = parted_message[1]
     user_id = message.from_user.id
 
-<<<<<<< Updated upstream
-    result = shodan_dork_search(dork, user_id)
-    bot.reply_to(message, result)
-=======
     dork_result = shodan_dork_search(dork, user_id)
     
     chat_id = message.chat.id 
     user_reports[chat_id] = dork_result # Временное сохранение отчёта
-
     # Создаём кнопку
     kb = types.InlineKeyboardMarkup()
     kb.add(
@@ -386,12 +430,113 @@ def process_service_step(service, user_id, chat_id): # Получение наз
         bot.send_message(chat_id, f"Мастер-пароль найден и верен. Пароль для сервиса **{selected_service}**:\n\n**{decrypted_password}**", parse_mode='Markdown')
     else:
         bot.send_message(chat_id, "Неверный мастер-пароль.")
->>>>>>> Stashed changes
+
+        
+@bot.message_handler(commands=['set_master_password'])
+def set_master_password_handler(message):
+    # запрет без регистрации
+    if not is_registered(message.from_user.id):
+        log_event(f"Попытка использования /set_master_password пользователем {message.from_user.id} без регистрации")
+        bot.reply_to(message, "❌ Команда /set_master_password доступна только после регистрации. Напиши /register")
+        return
+
+    chat_id = message.chat.id
+    msg = bot.send_message(chat_id, "Введите новый мастер-пароль:")
+    bot.register_next_step_handler(msg, process_set_master_password_step, message.from_user.id)
+
+def process_set_master_password_step(message, user_id):
+    set_master_session(user_id, message.text.strip())
+    bot.send_message(message.chat.id, "Мастер-пароль установлен!")
+
+@bot.message_handler(commands=['password'])
+def passwords_manager_handler(message):
+    # запрет без регистрации
+    if not is_registered(message.from_user.id):
+        log_event(f"Попытка использования /password пользователем {message.from_user.id} без регистрации")
+        bot.reply_to(message, "❌ Команда /password доступна только после регистрации. Напиши /register")
+        return
+    chat_id = message.chat.id 
+
+    # Создаём кнопку
+    kb = types.InlineKeyboardMarkup()
+    kb.add(
+        types.InlineKeyboardButton(
+            text="Добавить пароль",
+            callback_data="add_password"
+        ),
+        types.InlineKeyboardButton(
+            text="Показать пароли",
+            callback_data="show_passwords"
+        )
+    )
+
+    # Отправляем сообщение с кнопкой
+    bot.send_message(
+        chat_id,
+        f"Выберите действие ниже:",
+        reply_markup=kb
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "add_password")
+def callback_add_password(call): # В итоге получаю переменные master_password, service, service_password
+    user_id = call.from_user.id
+    chat_id = call.message.chat.id 
+    master_password = active_master_sessions.get(user_id)
+    if master_password: # Есть ли уже мастер пароль в сессии
+        msg = bot.send_message(chat_id, "Введите название сервиса (например, Gmail, Facebook):")
+        bot.register_next_step_handler(msg, process_service_addpass_step, user_id)
+    else:
+        msg = bot.send_message(chat_id, "Мастер-Пароль еще не был установлен. Введите свой мастер-пароль:")
+        bot.register_next_step_handler(msg, process_master_password_step, user_id)
+    
+
+def process_master_password_step(message, user_id): # Получение мастер-пароля
+    set_master_session(user_id, message.text.strip())
+    chat_id = message.chat.id
+    msg = bot.send_message(chat_id, "Введите название сервиса (например, Gmail, Facebook):")
+    bot.register_next_step_handler(msg, process_service_addpass_step, user_id)
+
+def process_service_addpass_step(message, user_id): # Получение названия сервиса
+    service = message.text.strip()
+    master_password = get_master_session(user_id)
+    if not master_password:
+        bot.send_message(message.chat.id, "❌ Мастер-сессия истекла. Введите /password заново.")
+        return
+    chat_id = message.chat.id
+    msg = bot.send_message(chat_id, "Введите пароль для сервиса:")
+    bot.register_next_step_handler(msg, process_addpassword_step, user_id, service)
+
+def process_addpassword_step(message, user_id, service): # Получение пароля сервиса
+    service_password = message.text.strip()
+    master_password = get_master_session(user_id)
+    if not master_password:
+        bot.send_message(message.chat.id, "❌ Мастер-сессия истекла. Введите /password заново.")
+        return
+    chat_id = message.chat.id
+    add_password(user_id, master_password, service, service_password) # Добавляем пароль в БД
+    bot.send_message(chat_id, f"Пароль для {service} сохранён!")
+        
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "show_passwords")
+def callback_add_password(call):
+    user_id = call.from_user.id
+    chat_id = call.message.chat.id 
+    services = get_services(user_id)
+    msg = bot.send_message(chat_id, "Сохранённые сервисы:\n" + "\n".join(services) if services else "Нет сохранённых паролей.")
+    bot.register_next_step_handler(msg, process_service_step, user_id, chat_id)
+    
+def process_service_step(service, user_id, chat_id): # Получение названия сервиса для получения пароля
+    selected_service = service.text.strip()
+    master = get_master_session(user_id)
+    is_valid = check_master_password(user_id, master)
+    if is_valid:
+        enc_pass = get_encrypted_password(user_id, selected_service)
+        decrypted_password = decrypt_password(enc_pass, master, user_id)
+        bot.send_message(chat_id, f"Мастер-пароль найден и верен. Пароль для сервиса **{selected_service}**:\n\n**{decrypted_password}**", parse_mode='Markdown')
+    else:
+        bot.send_message(chat_id, "Неверный мастер-пароль.")
 
 bot.infinity_polling()
 
-
-
-
 # TODO: Domain name info (whois, dns, etc.)
-# TODO: Domain name tech info (Shodan)

@@ -70,7 +70,6 @@ setx SHODAN_TOKEN "ВАШ_SHODAN_API_KEY"
 #### .env (PowerShell / Bash)
 ```bash
 cd <папка проекта>
-mkdir .env
 echo 'TG_TOKEN = "ВАШ_TELEGRAM_TOKEN"' >> .env
 echo 'SHODAN_TOKEN = "ВАШ_SHODAN_API_KEY"' >> .env
 ```
@@ -93,7 +92,7 @@ echo 'SHODAN_TOKEN = "ВАШ_SHODAN_API_KEY"' >> .env
 ### 5️⃣ Установка зависимостей
 
 ```bash
-pip install pyTelegramBotAPI requests shodan ipaddress
+pip install -r ./requirements.txt
 ```
 
 ---
@@ -118,6 +117,11 @@ python main.py
 | `/checkpassword <пароль>`   | Проверка надежности пароля      |
 | `/techinfo <IP>`            | TECHINT-отчёт (Shodan + crt.sh) |
 | `/shodandork  <Dork-запрос>`| Shodan-Dork запрос              |
+| `/password`                 | Управление паролями             |
+| `/set_master_password`      | Установка мастер-пароля         |
+| `/find <Любое значение>`    | Поиск в БД утечек (people.bd)   |
+| `/register`                 | Регистрация в боте              |
+| `/me`                       | Проверка своего пользователя    |
 
 ### Примеры
 
@@ -126,6 +130,7 @@ python main.py
 /checkpassword P@ssw0rd123
 /techinfo 1.1.1.1
 /shodandork ip=1.1.1.1, port=53, service=nginx
+/find Тажибаа
 ```
 
 ---
@@ -157,10 +162,19 @@ logs.txt
 ├── techinfo.py
 ├── shodandork.py
 ├── log_event.py
+├── access_control.py
+├── crypto_utils.py
+├── passwords_db.py
+├── registration.py
+├── report_file.py
+├── search.py
+├── users.db
+├── people.db
 ├── rockyou.txt
 ├── logs.txt
 ├── .env.example
 ├── .gitignore
+├── requirements.txt
 └── README.md
 ```
 
@@ -174,11 +188,111 @@ logs.txt
 * Shodan API
 * Have I Been Pwned API
 * crt.sh (Certificate Transparency)
-
+* SQLite
 ---
 
-## 🚧 Планы по развитию
+## 🐳 Использование Docker
+### Требования
 
-* 🐳 Dockerfile и docker-compose
+1. Docker установлен и запущен
+
+2. Python не нужен (всё внутри контейнера)
+
+3. Проверка Docker:
+```bash
+docker --version
+```
+### 📦 Сборка Docker-образа
+
+Из корня проекта выполните:
+```bash
+docker build -t tgbot .
+```
+### 📜 Создание файла для логирования
+Из корня проекта выполните:
+```bash
+touch logs.txt
+```
+### Вариант 1 (рекомендуется): запуск через .env файл
+1️⃣ Создайте файл .env в корне проекта с содержимым:
+```bash
+TG_TOKEN=TGTOKEN
+SHODAN_TOKEN=SHODANTOKEN
+```
+2️⃣ Запустите контейнер
+
+Linux / macOS:
+```bash
+docker run -d \
+  --name tgbot \
+  --env-file .env \
+  -v "$(pwd)/logs.txt:/app/logs.txt" \
+  tgbot
+```
+Windows PowerShell:
+```bash
+docker run -d `
+  --name tgbot `
+  --env-file .env `
+  -v "${PWD}\logs.txt:/app/logs.txt" `
+  tgbot
+```
+3️⃣ Проверка статуса
+```bash
+docker ps
+
+#Логи бота:
+docker logs tgbot
+```
+
+### Вариант 2: запуск с ручным указанием переменных окружения
+Linux / macOS:
+```bash
+docker run -d \
+  --name tgbot \
+  -e TG_TOKEN="TGTOKEN" \
+  -e SHODAN_TOKEN="SHODANTOKEN" \
+  -v "$(pwd)/logs.txt:/app/logs.txt" \
+  tgbot
+```
+
+Powershell:
+```bash
+docker run -d `
+  --name tgbot `
+  --env-file .env `
+  -v "${PWD}\logs.txt:/app/logs.txt" `
+  tgbot
+
+```
+### 🔁 Пересборка контейнера (если был баг)
+
+Если контейнер или образ уже существуют:
+```bash
+docker stop tgbot
+docker rm tgbot
+docker rmi tgbot
+```
+
+Затем:
+```bash
+docker build -t tgbot .
+docker run -d --name tgbot --env-file .env tgbot
+```
+### 🛠 Полезные команды
+Открыть контейнер в интерактивном режиме:
+```bash
+docker exec -it tgbot /bin/bash
+```
+
+Проверить переменные окружения внутри контейнера:
+```bash
+docker exec -it tgbot env
+```
+
+Остановить контейнер:
+```bash
+docker stop tgbot
+```
+## 🚧 Планы по развитию
 * 🔎 Дополнительные TECHINT-источники
-* 📊 Форматированный отчёт (Markdown / HTML)
