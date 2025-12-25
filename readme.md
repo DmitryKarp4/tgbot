@@ -53,12 +53,14 @@ cd <папка_проекта>
 
 * `TG_TOKEN` — Telegram Bot Token
 * `SHODAN_TOKEN` — API-ключ Shodan
+* `VT_TOKEN` - API-ключ VirusTotal
 
 #### Linux / macOS
 
 ```bash
 export TG_TOKEN=ВАШ_TELEGRAM_TOKEN
 export SHODAN_TOKEN=ВАШ_SHODAN_API_KEY
+export VT_TOKEN=ВАШ_VIRUS_TOTAL_KEY
 ```
 
 #### Windows (PowerShell)
@@ -66,12 +68,14 @@ export SHODAN_TOKEN=ВАШ_SHODAN_API_KEY
 ```powershell
 setx TG_TOKEN "ВАШ_TELEGRAM_TOKEN"
 setx SHODAN_TOKEN "ВАШ_SHODAN_API_KEY"
+setx VT_TOKEN "ВАШ_VIRUS_TOTAL_KEY"
 ```
 #### .env (PowerShell / Bash)
 ```bash
 cd <папка проекта>
 echo 'TG_TOKEN = "ВАШ_TELEGRAM_TOKEN"' >> .env
 echo 'SHODAN_TOKEN = "ВАШ_SHODAN_API_KEY"' >> .env
+echo 'VT_TOKEN = "ВАШ_VIRUS_TOTAL_KEY"' >> .env
 ```
 Если обязательные переменные не заданы — бот не запустится.
 
@@ -122,6 +126,8 @@ python main.py
 | `/find <Любое значение>`    | Поиск в БД утечек (people.bd)   |
 | `/register`                 | Регистрация в боте              |
 | `/me`                       | Проверка своего пользователя    |
+| `/genpass <длина пароля>`   | Генерация случайного, надежного пароля |
+| `/check <ссылка> `          | Проверка ссылки с помощью VirusTotal. Если ссылки нет - проверяется прикрепленный файл |
 
 ### Примеры
 
@@ -131,6 +137,8 @@ python main.py
 /techinfo 1.1.1.1
 /shodandork ip=1.1.1.1, port=53, service=nginx
 /find Тажибаа
+/genpass 64
+/check https://google.com
 ```
 
 ---
@@ -252,6 +260,7 @@ docker run -d \
   --name tgbot \
   -e TG_TOKEN="TGTOKEN" \
   -e SHODAN_TOKEN="SHODANTOKEN" \
+  -e VT_TOKEN="VT_TOKEN" \
   -v "$(pwd)/logs.txt:/app/logs.txt" \
   tgbot
 ```
@@ -260,10 +269,11 @@ Powershell:
 ```bash
 docker run -d `
   --name tgbot `
-  --env-file .env `
-  -v "${PWD}\logs.txt:/app/logs.txt" `
+  -e TG_TOKEN="TGTOKEN" `
+  -e SHODAN_TOKEN="SHODANTOKEN" `
+  -e VT_TOKEN="VT_TOKEN" `
+  -v "$(pwd)/logs.txt:/app/logs.txt" `
   tgbot
-
 ```
 ### 🔁 Пересборка контейнера (если был баг)
 

@@ -12,6 +12,8 @@ from search import search_people
 from log_event import log_event
 from report_file import send_report_file
 from crypto_utils import decrypt_password
+from checkvt import check_url, check_file_bytes, set_waiting_file, is_waiting_file
+from password_generator import generate_secure_password
 import time
 
 bot = telebot.TeleBot(TG_TOKEN)
