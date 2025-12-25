@@ -67,6 +67,8 @@ def send_help(message):
 
         "🛡 *Безопасность*\n"
         "/checkpassword <пароль> — Проверка надёжности пароля\n\n"
+        "/check <ссылка> — Проверка ссылки через VirusTotal. Для проверки требуется написать /check с пустым аргументом, а файл отправить следующим сообщением.\n\n"
+        "/genpass <длина> — Создание рандомного надежного пароля. Если не указать длину - пароль будет иметь 12 символов\n\n"
 
         "🔎 *Shodan Dork генератор*\n"
         "/shodandork <параметры> — Создание Shodan Dork запроса\n"
@@ -230,7 +232,6 @@ def shodan_dork_handler(message):
     
     chat_id = message.chat.id 
     user_reports[chat_id] = dork_result # Временное сохранение отчёта
-
     # Создаём кнопку
     kb = types.InlineKeyboardMarkup()
     kb.add(
@@ -246,6 +247,67 @@ def shodan_dork_handler(message):
         f"{dork_result}\n\nНажмите кнопку ниже, чтобы получить файл с полным отчётом.",
         reply_markup=kb
     )
+
+#Обработчик команды genpass. Генерация надежного пароля
+@bot.message_handler(commands=['genpass'])
+def genpass_handler(message):
+    parts = message.text.split(maxsplit=1)
+
+    # /genpass 20
+    if len(parts) == 2 and parts[1].isdigit():
+        length = int(parts[1])
+    else:
+        length = 12  # по умолчанию
+
+    try:
+        password = generate_secure_password(length)
+    except ValueError as e:
+        bot.reply_to(message, f"❌ {e}")
+        return
+
+    bot.reply_to(
+        message,
+        f"🔐 Сгенерированный пароль ({length} символов):\n\n`{password}`",
+    )
+
+
+#Обработчик команды check. Проверка файлов и ссылок на VirusTotal.
+@bot.message_handler(commands=['check'])
+def check_handler(message):
+    user_id = message.from_user.id
+    parts = message.text.split(maxsplit=1)
+
+    # /check <url>
+    if len(parts) == 2:
+        url = parts[1].strip()
+        bot.reply_to(message, "⏳ Проверяю ссылку через VirusTotal...")
+        result = check_url(url)
+        bot.reply_to(message, result)
+        return
+
+    # /check (без аргумента) -> ждём файл
+    set_waiting_file(user_id, True)
+    bot.reply_to(message, "📎 Отправь файл следующим сообщением, и я проверю его через VirusTotal.")
+
+#Обработчик документов
+@bot.message_handler(content_types=['document'])
+def document_handler(message):
+    user_id = message.from_user.id
+
+    # проверяем только если пользователь до этого написал /check
+    if not is_waiting_file(user_id):
+        return
+
+    set_waiting_file(user_id, False)
+
+    bot.reply_to(message, "⏳ Скачиваю файл и отправляю на проверку...")
+
+    file_info = bot.get_file(message.document.file_id)
+    file_bytes = bot.download_file(file_info.file_path)
+    filename = message.document.file_name or "file.bin"
+
+    result = check_file_bytes(filename, file_bytes)
+    bot.reply_to(message, result)
 
 # Обработчик кнопки
 @bot.callback_query_handler(func=lambda call: call.data == "send_report")
@@ -264,6 +326,112 @@ def callback_send_report(call):
     log_event(f"Файл с отчётом отправлен пользователю {user_id} через кнопку.")
     bot.answer_callback_query(call.id, "Файл отправлен ✅")
 
+@bot.message_handler(commands=['set_master_password'])
+def set_master_password_handler(message):
+    # запрет без регистрации
+    if not is_registered(message.from_user.id):
+        log_event(f"Попытка использования /set_master_password пользователем {message.from_user.id} без регистрации")
+        bot.reply_to(message, "❌ Команда /set_master_password доступна только после регистрации. Напиши /register")
+        return
+
+    chat_id = message.chat.id
+    msg = bot.send_message(chat_id, "Введите новый мастер-пароль:")
+    bot.register_next_step_handler(msg, process_set_master_password_step, message.from_user.id)
+
+def process_set_master_password_step(message, user_id):
+    set_master_session(user_id, message.text.strip())
+    bot.send_message(message.chat.id, "Мастер-пароль установлен!")
+
+@bot.message_handler(commands=['password'])
+def passwords_manager_handler(message):
+    # запрет без регистрации
+    if not is_registered(message.from_user.id):
+        log_event(f"Попытка использования /password пользователем {message.from_user.id} без регистрации")
+        bot.reply_to(message, "❌ Команда /password доступна только после регистрации. Напиши /register")
+        return
+    chat_id = message.chat.id 
+
+    # Создаём кнопку
+    kb = types.InlineKeyboardMarkup()
+    kb.add(
+        types.InlineKeyboardButton(
+            text="Добавить пароль",
+            callback_data="add_password"
+        ),
+        types.InlineKeyboardButton(
+            text="Показать пароли",
+            callback_data="show_passwords"
+        )
+    )
+
+    # Отправляем сообщение с кнопкой
+    bot.send_message(
+        message.chat.id,
+        f"Выберите действие ниже:",
+        reply_markup=kb
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "add_password")
+def callback_add_password(call): # В итоге получаю переменные master_password, service, service_password
+    user_id = call.from_user.id
+    chat_id = call.message.chat.id 
+    master_password = active_master_sessions.get(user_id)
+    if master_password: # Есть ли уже мастер пароль в сессии
+        msg = bot.send_message(chat_id, "Введите название сервиса (например, Gmail, Facebook):")
+        bot.register_next_step_handler(msg, process_service_addpass_step, user_id)
+    else:
+        msg = bot.send_message(chat_id, "Мастер-Пароль еще не был установлен. Введите свой мастер-пароль:")
+        bot.register_next_step_handler(msg, process_master_password_step, user_id)
+    
+
+def process_master_password_step(message, user_id): # Получение мастер-пароля
+    set_master_session(user_id, message.text.strip())
+    chat_id = message.chat.id
+    msg = bot.send_message(chat_id, "Введите название сервиса (например, Gmail, Facebook):")
+    bot.register_next_step_handler(msg, process_service_addpass_step, user_id)
+
+def process_service_addpass_step(message, user_id): # Получение названия сервиса
+    service = message.text.strip()
+    master_password = get_master_session(user_id)
+    if not master_password:
+        bot.send_message(message.chat.id, "❌ Мастер-сессия истекла. Введите /password заново.")
+        return
+    chat_id = message.chat.id
+    msg = bot.send_message(chat_id, "Введите пароль для сервиса:")
+    bot.register_next_step_handler(msg, process_addpassword_step, user_id, service)
+
+def process_addpassword_step(message, user_id, service): # Получение пароля сервиса
+    service_password = message.text.strip()
+    master_password = get_master_session(user_id)
+    if not master_password:
+        bot.send_message(message.chat.id, "❌ Мастер-сессия истекла. Введите /password заново.")
+        return
+    chat_id = message.chat.id
+    add_password(user_id, master_password, service, service_password) # Добавляем пароль в БД
+    bot.send_message(chat_id, f"Пароль для {service} сохранён!")
+        
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "show_passwords")
+def callback_add_password(call):
+    user_id = call.from_user.id
+    chat_id = call.message.chat.id 
+    services = get_services(user_id)
+    msg = bot.send_message(chat_id, "Сохранённые сервисы:\n" + "\n".join(services) if services else "Нет сохранённых паролей.")
+    bot.register_next_step_handler(msg, process_service_step, user_id, chat_id)
+    
+def process_service_step(service, user_id, chat_id): # Получение названия сервиса для получения пароля
+    selected_service = service.text.strip()
+    master = get_master_session(user_id)
+    is_valid = check_master_password(user_id, master)
+    if is_valid:
+        enc_pass = get_encrypted_password(user_id, selected_service)
+        decrypted_password = decrypt_password(enc_pass, master, user_id)
+        bot.send_message(chat_id, f"Мастер-пароль найден и верен. Пароль для сервиса **{selected_service}**:\n\n**{decrypted_password}**", parse_mode='Markdown')
+    else:
+        bot.send_message(chat_id, "Неверный мастер-пароль.")
+
+        
 @bot.message_handler(commands=['set_master_password'])
 def set_master_password_handler(message):
     # запрет без регистрации
