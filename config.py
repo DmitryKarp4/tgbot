@@ -7,3 +7,8 @@ if not TG_TOKEN:
 SHODAN_TOKEN = getenv("SHODAN_TOKEN")
 if not SHODAN_TOKEN:
     raise ValueError("Не задана переменная окружения SHODAN_TOKEN")
+
+VT_TOKEN = getenv("VT_TOKEN")
+if not VT_TOKEN:
+    raise ValueError("Не задана переменная окружения VT_TOKEN")
+
