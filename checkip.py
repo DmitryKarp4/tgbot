@@ -5,6 +5,7 @@ def is_valid_ip(ip_str, user_id) -> tuple[bool, str, str|None]:
     try:
             ipaddress.ip_address(ip_str)
             log_event(f"Проверка IP-адреса {ip_str} от пользователя {user_id} завершена: действительный IP-адрес.")
+            hostname = None
             try:
                 hostname = socket.gethostbyaddr(ip_str)
                 log_event(f"Обратное разрешение IP-адреса {ip_str} от пользователя {user_id} успешно.")
