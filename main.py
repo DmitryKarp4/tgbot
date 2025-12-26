@@ -539,6 +539,15 @@ def process_service_step(service, user_id, chat_id): # Получение наз
     else:
         bot.send_message(chat_id, "Неверный мастер-пароль.")
 
+@bot.message_handler(func=lambda message: message.text and message.text.startswith("/"))
+def unknown_command_handler(message):
+    bot.reply_to(
+        message,
+        "❓ Неизвестная команда.\n\n"
+        "Используй /help, чтобы увидеть список доступных команд."
+    )
+
+
 bot.infinity_polling()
 
 # TODO: Domain name info (whois, dns, etc.)
