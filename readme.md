@@ -234,6 +234,7 @@ Linux / macOS:
 docker run -d \
   --name tgbot \
   --env-file .env \
+  --dns 1.1.1.1 \
   -v "$(pwd)/logs.txt:/app/logs.txt" \
   tgbot
 ```
@@ -242,6 +243,7 @@ Windows PowerShell:
 docker run -d `
   --name tgbot `
   --env-file .env `
+  --dns 1.1.1.1 `
   -v "${PWD}\logs.txt:/app/logs.txt" `
   tgbot
 ```
@@ -261,6 +263,7 @@ docker run -d \
   -e TG_TOKEN="TGTOKEN" \
   -e SHODAN_TOKEN="SHODANTOKEN" \
   -e VT_TOKEN="VT_TOKEN" \
+  --dns 1.1.1.1 \
   -v "$(pwd)/logs.txt:/app/logs.txt" \
   tgbot
 ```
@@ -273,6 +276,7 @@ docker run -d `
   -e SHODAN_TOKEN="SHODANTOKEN" `
   -e VT_TOKEN="VT_TOKEN" `
   -v "$(pwd)/logs.txt:/app/logs.txt" `
+  --dns 1.1.1.1 `
   tgbot
 ```
 ### 🔁 Пересборка контейнера (если был баг)
